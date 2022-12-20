@@ -1,0 +1,253 @@
+import React from "react";
+import { useReducer } from "react";
+import { useContext, useEffect } from "react";
+import reducer from "./reducer";
+
+const AppContext = React.createContext();
+const api = `https://hn.algolia.com/api/v1/search?`;
+
+const intialData = {
+    isLoading: true,
+    query: "",
+    nbPages: 0,
+    page: 0,
+    hits: []
+};
+
+const AppProvider = ({ children }) => {
+    const [state, dispatch] = useReducer(reducer, intialData);
+
+
+    const fetchApi = async (api) => {
+
+        dispatch({type:"SET_LOADING"})
+
+        try {
+
+            const url = await fetch(api);
+            const data = await url.json();
+            console.log(data);
+            dispatch(
+                {
+                    type: "GET_STORIES",
+                    payload: {
+                        hits: data.hits,
+                        nbPages:data.nbPages
+                    }
+                }
+            )
+
+        } catch (error) {
+            console.log(error);
+        }
+
+    }
+
+    const removePost=(post_ID)=>
+    {
+        dispatch({type:"REMOVE_POST", payload:post_ID})
+    }
+    const searchPost=(search)=>
+    {
+        dispatch({type:"SEARCH_POST", payload:search})
+    }
+
+    const getPrev=()=>{
+        dispatch({type:"GET_PREV"});
+    }
+
+    const getNext=()=>{
+        dispatch({type:"GET_NEXT"});
+    }
+
+    useEffect(() => {
+        fetchApi(`${api}query=${state.query}&page=${state.page}`);
+    }, [state.query, state.page])
+
+    
+    return (
+        <>
+            <AppContext.Provider value={{ ...state, removePost, searchPost, getPrev, getNext}}>
+                {children}
+            </AppContext.Provider>
+        </>
+    )
+}
+
+const useGlobalContext = () => {
+    return useContext(AppContext);
+}
+
+export { AppContext, AppProvider, useGlobalContext }
+
+
+
+//reducer
+const reducer = (state, action) => {
+    switch (action.type) {
+        case "SET_LOADING":
+            return {
+                ...state,
+                isLoading: true,
+            }
+
+        case "GET_STORIES":
+            return {
+                ...state,
+                hits: action.payload.hits,
+                isLoading: false,
+                nbPages: action.payload.nbPages,
+            };
+
+        case "REMOVE_POST":
+            return {
+                ...state,
+                hits: state.hits.filter((curElem) =>
+                    curElem.objectID !== action.payload
+                ),
+            }
+
+        case "SEARCH_POST":
+            return {
+                ...state,
+                query: action.payload,
+            }
+
+        case "GET_NEXT":
+            let PageNumInc=state.page + 1;
+
+            if(PageNumInc >= state.nbPages)
+            {
+                PageNumInc= 0;
+            }
+
+            return {
+                ...state,
+                page: PageNumInc,
+            }
+
+        case "GET_PREV":
+
+            let PageNum=state.page - 1;
+
+            if(PageNum <= 0)
+            {
+                PageNum=0;
+            }
+            
+            return {
+                ...state,
+                page: PageNum,
+            }
+    }
+
+
+    return state;
+}
+
+
+export default reducer;
+
+
+//GET_STORIES
+import React from 'react'
+import { useGlobalContext } from './Context'
+import Search from './Search';
+
+
+const Stories = () => {
+
+  const {hits, nbPage, isLoading, removePost}=useGlobalContext()
+
+
+
+
+
+  if(isLoading)
+  {
+    return(
+      <>
+        <p className='loadText'>Loading...</p>
+      </>
+    )
+  }
+
+  return (
+    <>
+      <div className="container">
+      
+        
+        <div className="row">
+        
+          {
+            hits.map((curPost) => {
+              let { title, author, num_comments, objectID, url } = curPost;
+              return (
+               
+                  <div className="col-10 col-xl-8 col-lg-8 col-md-8 newsBox" key={objectID}>
+                    <div className="card newsCard">
+                      <h3 className="title">{title}</h3>
+                      <p className="comments_and_by">By {author} | {num_comments} comments </p>
+                      <div className="readmoreAndRemove">
+                        <a href={url} className="readmore">Read More</a>
+                        <button className='btn remove' onClick={()=> removePost(objectID)}>Remove</button>
+                      </div>
+                    </div>
+                  </div>
+                
+              )
+            })
+          }
+        </div>
+      </div>
+     
+    </>
+  )
+}
+
+export default Stories
+
+
+//search
+import React from 'react'
+import { useEffect, useState } from 'react';
+import { useGlobalContext } from './Context';
+
+
+const Search = () => {
+        const {query, searchPost}=useGlobalContext();
+
+        return <>
+                <h3 className='newsHead'>TECH NEWS APP</h3>
+                <form onSubmit={(e)=> e.preventDefault()} className="form-group">
+                        <input type="text" name="search" id="" className='form-control search' 
+                        placeholder='Search Here' value={query} onChange={(e)=> searchPost(e.target.value)}/>
+                </form>
+        </>
+    
+ 
+}
+
+export default Search;
+
+
+//pagination
+import React from 'react'
+import { useGlobalContext } from './Context'
+
+const Pagination = () => {
+  const {page, nbPages, getPrev, getNext}=useGlobalContext();
+
+  return (
+    <>
+      <div className="pagination_btn">
+        <button className='prev btn' onClick={getPrev}> PREV </button>
+        {page + 1} to {nbPages}
+        <button className='next btn' onClick={getNext}> NEXT </button>
+      </div>
+    </>
+  )
+}
+
+export default Pagination;
+
